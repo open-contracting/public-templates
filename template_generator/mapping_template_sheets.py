@@ -147,7 +147,7 @@ class MappingTemplateSheetsGenerator(object):
 
         # add header rows to each sheet
         headers = ['column_headers',
-                'depth',
+                depth,
                 self.get_string('path_header'),
                 self.get_string('title_header'),
                 self.get_string('description_header'),
