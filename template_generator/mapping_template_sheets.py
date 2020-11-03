@@ -34,9 +34,9 @@ class MappingTemplateSheetsGenerator(object):
         self.extensions_info = extensions_info
         self.field_extensions = {}
         self.save_to = save_to
-        
+
         # read extension names per path from mapping-sheet
-        with open(self.mapping_sheet_file, 'r') as f: 
+        with open(self.mapping_sheet_file, 'r') as f:
             reader = csv.DictReader(f, dialect='excel')
             row = next(reader)
             for row in reader:
@@ -58,9 +58,12 @@ class MappingTemplateSheetsGenerator(object):
         schema_response = requests.get(self.schema_url)
         schema = schema_response.json()
 
-        builder = ProfileBuilder(None, self.extensions_info.extension_urls)
-        schema = builder.patched_release_schema(schema=schema, extension_field=self.extension_field)
-        schema = jsonref.JsonRef.replace_refs(schema)
+        try:
+            builder = ProfileBuilder(None, self.extensions_info.extension_urls)
+            schema = builder.patched_release_schema(schema=schema, extension_field=self.extension_field)
+        except:
+            schema = jsonref.JsonRef.replace_refs(schema)
+
         with open('release-schema.json', 'w') as f:
             jsonref.dump(schema, f)
         return schema
@@ -144,7 +147,7 @@ class MappingTemplateSheetsGenerator(object):
 
         # add header rows to each sheet
         headers = ['column_headers',
-                depth,
+                'depth',
                 self.get_string('path_header'),
                 self.get_string('title_header'),
                 self.get_string('description_header'),
@@ -161,7 +164,7 @@ class MappingTemplateSheetsGenerator(object):
 
             # set separator to use in field paths in output
             field.sep = '/'
-            
+
             # is this field from an extension?
             try:
                 field_extension = self.field_extensions[field.path]
@@ -202,6 +205,7 @@ class MappingTemplateSheetsGenerator(object):
                 else:
                     org_refs.append(row)
 
+            # determine which mapping sheet to add the field to
             try:
                 path = field.path[:field.path.index('/')]
             except:
@@ -223,7 +227,7 @@ class MappingTemplateSheetsGenerator(object):
             else:
                 sheet = sheets['general']
                 sheetname = 'general'
-            
+
             if formatKey == 'title':
                 sheet_headers[sheetname].append([formatKey, depth, '{}: {}'.format(self.get_string('standard_name'), field.schema['title'])])
                 sheet_headers[sheetname].append(['subtitle', depth, field.schema['description']])
@@ -249,7 +253,7 @@ class MappingTemplateSheetsGenerator(object):
         for name in mapping_sheetnames:
             sheets[name] = sheet_headers[name] + [headers] + sheets[name]
 
-        # repeat fields from parties section for each organization reference 
+        # repeat fields from parties section for each organization reference
         sheets['general'].append(['subtitle', depth, self.get_string('parties_description')]) # description of the parties section
 
         for ref in org_refs:
@@ -285,26 +289,26 @@ class MappingTemplateSheetsGenerator(object):
 
                     sheets[name].append(['extension',0,text])
                     sheets[name].extend(rows)
-            
+
             # add additional fields section to each sheet
             sheets[name].append(['section', 0, self.get_string('additional_fields_note')])
-            
+
             for i in range(4):
                 sheets[name].append(['additional_field',0]) # was 1
-            
+
             # make all rows have the same number of columns
             # (required for CSV parsing script in Google Sheets)
             for row in sheets[name]:
                 if len(row) < len(headers):
                     for i in range(len(headers) - len(row)):
                         row.append('')
-            
+
         return self._save_sheets(sheets)
 
 
     def _save_sheets(self, sheets):
-        
-        if self.save_to == 'drive': 
+
+        if self.save_to == 'drive':
             # save CSVs and upload to Google Drive
             drive = self.authenticate_pydrive()
 
@@ -322,7 +326,7 @@ class MappingTemplateSheetsGenerator(object):
             with open(output['file'], 'w', encoding='utf8', newline='') as output_file:
                 writer = csv.writer(output_file, dialect='excel')
                 writer.writerows(output['sheet'])
-                
+
             if self.save_to == 'drive':
                 uploaded = drive.CreateFile({'title': output['sheetname']})
                 uploaded.SetContentFile(output['file'])
@@ -332,7 +336,7 @@ class MappingTemplateSheetsGenerator(object):
         return ids
 
 if __name__ == '__main__':
-    
+
     strings = {'path_header': {'en': 'Path', 'es': 'Rutas'},
            'type_header': {'en': 'Type', 'es': 'Tipo'},
            'title_header': {'en': 'Title', 'es': 'Título'},
@@ -351,13 +355,13 @@ if __name__ == '__main__':
            'overview': {'en': 'Field Level Mapping Overview', 'es':'Descripción Mapeo a Nivel de Campos'},
            'source_systems': {'en': '(Source) 1. Systems', 'es':'(Fuentes) 1. Sistemas'},
            'source_fields': {'en': '(Source) 2. Fields', 'es':'(Fuentes) 1. Campos'},
-           'general_sheetname': {'en': '(OCDS) 1. General (all stages)', 'es':'(OCDS) 1. General (todas las etapas)'}, 
-           'general_title': {'en': 'General (all stages)', 'es':'General (todas las etapas)'}, 
-           'planning_sheetname': {'en': '(OCDS) 2. Planning', 'es':'(OCDS) 2. Planificación'}, 
-           'tender_sheetname': {'en': '(OCDS) 3. Tender', 'es':'(OCDS) 3. Licitación'}, 
-           'awards_sheetname': {'en': '(OCDS) 4. Award', 'es':'(OCDS) 4. Adjudicación'}, 
-           'contracts_sheetname': {'en': '(OCDS) 5. Contract', 'es':'(OCDS) 5. Contrato'}, 
-           'implementation_sheetname': {'en': '(OCDS) 6. Implementation', 'es':'(OCDS) 6. Implementación'}, 
+           'general_sheetname': {'en': '(OCDS) 1. General (all stages)', 'es':'(OCDS) 1. General (todas las etapas)'},
+           'general_title': {'en': 'General (all stages)', 'es':'General (todas las etapas)'},
+           'planning_sheetname': {'en': '(OCDS) 2. Planning', 'es':'(OCDS) 2. Planificación'},
+           'tender_sheetname': {'en': '(OCDS) 3. Tender', 'es':'(OCDS) 3. Licitación'},
+           'awards_sheetname': {'en': '(OCDS) 4. Award', 'es':'(OCDS) 4. Adjudicación'},
+           'contracts_sheetname': {'en': '(OCDS) 5. Contract', 'es':'(OCDS) 5. Contrato'},
+           'implementation_sheetname': {'en': '(OCDS) 6. Implementation', 'es':'(OCDS) 6. Implementación'},
            'schema_sheetname': {'en': 'OCDS Schema 1.1.5', 'es':'Esquema OCDS 1.1.5'},
            'schema_extensions_sheetname': {'en': 'OCDS Extension Schemas 1.1.5', 'es':'Esquemas de Extensiones OCDS 1.1.5'}
     }
@@ -366,7 +370,7 @@ if __name__ == '__main__':
     schema_url = 'https://standard.open-contracting.org/1.1-dev/en/release-schema.json'
     info = ExtensionsInfo(lang=lang)
     urls= info.load_extensions_info()
-    
+
     subprocess.run(['curl','-O',schema_url])
     with open('mapping-sheet.csv', 'w') as f:
         subprocess.run(['ocdskit','mapping-sheet','release-schema.json','--extension'] + urls + ['--extension-field','extension'],
@@ -374,4 +378,3 @@ if __name__ == '__main__':
 
     g = MappingTemplateSheetsGenerator(lang=lang, schema_url=schema_url, extensions_info=info, strings=strings, save_to='local')
     g.generate_mapping_sheets()
-
